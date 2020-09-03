@@ -31,9 +31,9 @@ cells <- unique(unlist(spike_data$sorted_spikes) %>%
 
 create_spike_dirs(session, cells)
 ```
-```{r}
-bits <- c("free_reward", "fixation_cross", "win_lose")
-situations <- c(4, 2, 2)
+```{r plot_unsorted_data, warning=FALSE,message=FALSE}
+bits <- c("free_reward", "fixation_cross", "win_lose", "fractal_display")
+situations <- c(4, 2, 2, 2)
 
 map2(bits, situations,
      function(b, s) {
