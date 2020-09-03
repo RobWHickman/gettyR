@@ -1,0 +1,339 @@
+---
+title: "pre-munge_getty"
+author: "Robert Hickman"
+date: "05/08/2020"
+output: html_document
+---
+
+```{r libraries, warning=FALSE,message=FALSE}
+library(tidyverse)
+library(gettyR)
+```
+
+```{r}
+dir <- "C:/Users/DHill/Desktop/robert_cell_sorting/sessions"
+session <- "U-2020-07-30-s2"
+
+data <- gettyR::open_mat(file.path(dir, session, dir(file.path(dir, session)) %>% .[grepl("[0-9]\\.mat", .)])) %>%
+  mutate(cumulative_duration_ms = cumsum(duration),
+         trial_start_time_ms = lag(cumulative_duration_ms, default = 0)) %>%
+  select(-cumulative_duration_ms)
+
+sorted_spikes <- gettyR::open_sorted_spikes(file.path(dir, session, 'sorted_spikes.mat')) %>%
+  mutate(cell = paste0("cell", cell),
+         trial = map_dbl(time, function(s) last(which(data$trial_start_time_ms < s)))) %>%
+  rename(spike_time_ms = time)
+
+data <- left_join(data, sorted_spikes, by = "trial") %>%
+  mutate(trial_spike_time_ms = spike_time_ms - trial_start_time_ms) %>%
+  tidyr::nest(sorted_spikes = c(spike_time_ms, trial_spike_time_ms, cell))
+
+```
+
+```{r trying_to_sort_timing_mismatch, warning=FALSE,message=FALSE}
+dirty_munging <- data %>%
+  #filter(situation == 2) %>%
+  select(trial, spikes, sorted_spikes) %>%
+  pmap_df(gettyR::rough_match_spikes) %>%
+  right_join(data, by = "trial")
+
+
+sorted_spike_responses <- dirty_munging %>%
+  unnest(addvals) %>%
+  filter(names == "prv_reward_liquid") %>%
+  mutate(win_trial = case_when(
+    situation == 2 & lead(vals) >0 ~ "win",
+    situation == 2 & lead(vals) == 0 ~ "lose"
+  )) %>%
+  select(trial, trial_start_time_ms, situation, bits, sorted_spikes, lag, Freq, win_trial) %>%
+  unnest(bits) %>%
+  filter(index == "upat") %>%
+  unnest(sorted_spikes)
+
+fr_sorted <- sorted_spike_responses %>%
+  filter(situation == 4 & names == "budget_tap" & Freq > 2 & !is.na(vals)) %>%
+  mutate(post_event_time_ms = trial_spike_time_ms - vals - lag) %>%
+  filter(post_event_time_ms < 2000 & post_event_time_ms > -2000) %>%
+  ggplot(aes(fill = cell)) +
+  geom_histogram(aes(x = post_event_time_ms)) +
+  geom_vline(xintercept = 0, colour = "red", linetype = "dashed", size = 2) +
+  labs(title = "sorted spike responses to Fixation Cross",
+       x = "post event time (/ms)",
+       y = "spike count") +
+  theme_minimal() +
+  facet_wrap(~cell)
+
+fix_cross_sorted <- sorted_spike_responses %>%
+  filter(situation == 2 & names == "fixation_cross") %>%
+  mutate(post_event_time_ms = trial_spike_time_ms - vals - lag) %>%
+  filter(post_event_time_ms < 2000 & post_event_time_ms > -1000) %>%
+  ggplot(aes(fill = cell)) +
+  geom_histogram(aes(x = post_event_time_ms), binwidth = 25, alpha = 0.7) +
+  geom_vline(xintercept = 0, colour = "red", linetype = "dashed", size = 2) +
+  labs(title = "sorted spike responses to Fixation Cross",
+       x = "post event time (/ms)",
+       y = "spikes") +
+  theme_minimal() +
+  facet_wrap(~cell)
+
+winlose_sorted <- sorted_spike_responses %>%
+  filter(situation == 2 & names == "win_lose" & !is.na(win_trial)) %>%
+  mutate(post_event_time_ms = trial_spike_time_ms - vals - lag) %>%
+  filter(post_event_time_ms < 1000 & post_event_time_ms > -1000) %>%
+  ggplot(aes(fill = cell)) +
+  geom_histogram(aes(x = post_event_time_ms), binwidth = 25, alpha = 0.7) +
+  geom_vline(xintercept = 0, colour = "red", linetype = "dashed", size = 2) +
+  labs(title = "sorted spike responses to Win/Lose Reveal",
+       x = "post event time (/ms)",
+       y = "spikes") +
+  theme_minimal() +
+  facet_grid(win_trial~cell)
+
+```
+
+```{r dirty_munging_wilcoxon}
+wc_windows <- 750
+wilcoxons <- sorted_spike_responses %>%
+  filter(situation == 2) %>%
+  mutate(event_time_ms = trial_spike_time_ms - vals - lag) %>%
+  mutate(event_ref = case_when(
+    abs(event_time_ms) < wc_windows & event_time_ms < 0 ~ "pre",
+    abs(event_time_ms) < wc_windows & event_time_ms > 0 ~ "post"
+  )) %>%
+  filter(!is.na(event_ref)) %>%
+  group_by(cell, names, event_ref, trial) %>%
+  summarise(spikes = n()) %>%
+  pivot_wider(names_from = event_ref, values_from = spikes, values_fill = 0) %>%
+  ungroup() %>%
+  split(f = paste(.$cell, .$names)) %>%
+  map_df(., function(s) {
+    if(nrow(s) > 1) {
+      test <- broom::tidy(wilcox.test(s$post, s$pre)) %>%
+        mutate(cell = unique(s$cell),
+               event = unique(s$names))
+      return(test)
+  } else {
+    return(NULL)
+  }
+  }) %>%
+  filter(event != "trial_onset")
+
+hz <- 22000
+
+trace <- gettyR::open_cell_trace(file) %>%
+  group_by(cell, time) %>%
+  mutate(time = time * 1000 / hz) %>%
+  summarise(m = mean(value),
+            sd = sd(value))
+
+trace_plot <- ggplot(trace, aes(x = time, y = m)) + 
+  geom_ribbon(aes(ymin = m - 1.96*sd, ymax = m + 1.96*sd), alpha = 0.5) +
+  geom_line() +
+  labs(title = "cell traces",
+       x = "time (/ms)",
+       y = "voltage change") +
+  theme_minimal() +
+  facet_wrap(~cell)
+```
+
+
+```{r getty_responses, warning=FALSE,message=FALSE}
+getty_spike_responses <- data %>%
+  select(trial, trial_start_time_ms, situation, bits, spikes) %>%
+  unnest(bits) %>%
+  filter(index == "upat") %>%
+  unnest(spikes) %>%
+  select(-spike)
+
+free_reward_getty <- getty_spike_responses %>%
+  filter(situation == 4 & names == "budget_tap") %>%
+  mutate(post_event_time_ms = trial_spike_time_ms - vals) %>%
+  filter(post_event_time_ms < 2000 & post_event_time_ms > -2000) %>%
+  ggplot() +
+  geom_histogram(aes(x = post_event_time_ms)) +
+  geom_vline(xintercept = 0, colour = "red", linetype = "dashed", size = 2) +
+  labs(title = "getty spike responses to Free Reward",
+       x = "post event time (/ms)",
+       y = "spike count") +
+  theme_minimal()
+
+fix_cross_getty <- getty_spike_responses %>%
+  filter(situation == 2 & names == "fixation_cross") %>%
+  mutate(post_event_time_ms = trial_spike_time_ms - vals) %>%
+  filter(post_event_time_ms < 2000 & post_event_time_ms > -2000) %>%
+  ggplot() +
+  geom_histogram(aes(x = post_event_time_ms), binwidth = 20) +
+  geom_vline(xintercept = 0, colour = "red", linetype = "dashed", size = 2) +
+  labs(title = "getty spike responses to Fixation Cross",
+       x = "post event time (/ms)",
+       y = "spike count") +
+  theme_minimal()
+
+win_lose_getty <- getty_spike_responses %>%
+  filter(situation == 2 & names == "win_lose") %>%
+  mutate(post_event_time_ms = trial_spike_time_ms - vals) %>%
+  filter(post_event_time_ms < 2000 & post_event_time_ms > -2000) %>%
+  ggplot() +
+  geom_histogram(aes(x = post_event_time_ms)) +
+  geom_vline(xintercept = 0, colour = "red", linetype = "dashed", size = 2) +
+  labs(title = "getty spike responses to Winning Bids",
+       x = "post event time (/ms)",
+       y = "spike count") +
+  theme_minimal()
+
+```
+
+```{r}
+sorted_spike_responses <- data %>%
+  select(trial, trial_start_time_ms, situation, bits, sorted_spikes) %>%
+  unnest(bits) %>%
+  filter(index == "upat") %>%
+  unnest(sorted_spikes)
+
+free_reward_sorted <- sorted_spike_responses %>%
+  filter(situation == 4 & names == "budget_tap") %>%
+  mutate(post_event_time_ms = (spike_time_ms - trial_start_time_ms) - vals) %>%
+  filter(post_event_time_ms < 2000 & post_event_time_ms > -2000) %>%
+  ggplot() +
+  geom_histogram(aes(x = post_event_time_ms)) +
+  geom_vline(xintercept = 0, colour = "red", linetype = "dashed", size = 2) +
+  labs(title = "getty spike responses to Free Reward",
+       x = "post event time (/ms)",
+       y = "spike count") +
+  theme_minimal()
+
+fix_cross_sorted <- sorted_spike_responses %>%
+  filter(situation == 2 & names == "fixation_cross") %>%
+  mutate(post_event_time_ms = (spike_time_ms - trial_start_time_ms) - vals) %>%
+  filter(post_event_time_ms < 2000 & post_event_time_ms > -2000) %>%
+  ggplot(aes(fill = cell)) +
+  geom_histogram(aes(x = post_event_time_ms)) +
+  geom_vline(xintercept = 0, colour = "red", linetype = "dashed", size = 2) +
+  labs(title = "sorted spike responses to Fixation Cross",
+       x = "post event time (/ms)",
+       y = "spike count") +
+  theme_minimal() +
+  facet_wrap(~cell)
+
+win_bid_sorted <- sorted_spike_responses %>%
+  filter(situation == 4 & names == "win_lose") %>%
+  mutate(post_event_time_ms = (spike_time_ms - trial_start_time_ms) - vals) %>%
+  filter(post_event_time_ms < 2000 & post_event_time_ms > -2000) %>%
+  ggplot(aes(fill = cell)) +
+  geom_histogram(aes(x = post_event_time_ms)) +
+  geom_vline(xintercept = 0, colour = "red", linetype = "dashed", size = 2) +
+  labs(title = "sorted spike responses to Fixation Cross",
+       x = "post event time (/ms)",
+       y = "spike count") +
+  theme_minimal() +
+  facet_wrap(~cell)
+
+```
+
+
+```{r}
+test <- data %>%
+  select(trial, situation, bits, spikes) %>%
+  filter(situation == 4) %>%
+  unnest(bits) %>%
+  filter(index == "upat" & names == "budget_tap") %>%
+  unnest(spikes) %>%
+  mutate(post_event_time = case_when(
+    !is.na(vals) ~ spike_time - vals,
+    TRUE ~ spike_time
+  )) %>%
+  mutate(rewarded = case_when(
+    !is.na(vals) ~ "free reward",
+    TRUE ~ "no free reward"
+  )) %>%
+  filter(post_event_time > -2000 & post_event_time < 2000)
+
+fr1 <- test %>%
+  ggplot() +
+  geom_rect(aes(xmin = post_event_time, xmax = post_event_time + 4, ymin = trial, ymax = trial + 1)) +
+  geom_vline(xintercept = 0, colour = "red", linetype = "dashed", size = 2) +
+  theme_minimal() +
+  facet_wrap(~rewarded, scales = "free_x")
+
+fr2 <- test %>%
+  ggplot() +
+  geom_histogram(aes(x = post_event_time)) +
+  geom_vline(xintercept = 0, colour = "red", linetype = "dashed", size = 2) +
+  theme_minimal() +
+  facet_wrap(~rewarded, scales = "free_x")
+```
+
+```{r}
+```
+
+```{r}
+fr3 <- data %>%
+  select(trial, trial_start_time, situation, bits, sorted_spikes) %>%
+  filter(situation == 4) %>%
+  unnest(bits) %>%
+  filter(index == "upat" & names == "budget_tap" &!is.na(vals)) %>%
+  mutate(fr_trial = 1:n()) %>%
+  tidyr::unnest(sorted_spikes) %>%
+  mutate(trial_spike_time = time - trial_start_time) %>%
+  mutate(post_event_time = (trial_spike_time * 1000) - vals) %>%
+  filter(post_event_time > -2000 & post_event_time < 2000) %>%
+  ggplot(aes(fill = cell)) +
+  geom_rect(aes(xmin = post_event_time, xmax = post_event_time + 6, ymin = fr_trial, ymax = fr_trial + 1), colour = "black") +
+  geom_vline(xintercept = 0, colour = "red", linetype = "dashed", size = 2) +
+  labs(title = "sorted cell responses to Free Reward",
+       y = "free reward trial",
+       x = "post reward time (/ms)") +
+  theme_minimal()
+
+fr4 <- data %>%
+  select(trial, trial_start_time, situation, bits, sorted_spikes) %>%
+  filter(situation == 4) %>%
+  unnest(bits) %>%
+  filter(index == "upat" & names == "budget_tap" &!is.na(vals)) %>%
+  mutate(fr_trial = 1:n()) %>%
+  tidyr::unnest(sorted_spikes) %>%
+  mutate(trial_spike_time = time - trial_start_time) %>%
+  mutate(post_event_time = (trial_spike_time * 1000) - vals) %>%
+  filter(post_event_time > -2000 & post_event_time < 2000) %>%
+  ggplot(aes(fill = cell)) +
+geom_histogram(aes(x = post_event_time)) +  geom_vline(xintercept = 0, colour = "red", linetype = "dashed", size = 2) +
+  geom_vline(xintercept = 0, colour = "red", linetype = "dashed", size = 2) +
+  labs(title = "sorted cell responses to Free Reward",
+       y = "free reward trial",
+       x = "post reward time (/ms)") +
+  theme_minimal() +
+  facet_wrap(~cell)
+
+```
+
+```{r}
+fc1 <- data %>%
+  select(trial, trial_start_time, situation, bits, sorted_spikes) %>%
+  filter(situation == 2) %>%
+  unnest(bits) %>%
+  filter(index == "upat" & names == "fixation_cross" &!is.na(vals)) %>%
+  tidyr::unnest(sorted_spikes) %>%
+  mutate(trial_spike_time = time - trial_start_time) %>%
+  mutate(post_event_time = (trial_spike_time * 1000) - vals) %>%
+  ggplot() +
+  geom_rect(aes(xmin = post_event_time, xmax = post_event_time + 4, ymin = trial, ymax = trial + 1)) +
+  geom_vline(xintercept = 0, colour = "red", linetype = "dashed", size = 2) +
+  theme_minimal() +
+  facet_wrap(~cell)
+
+fc1 <- data %>%
+  select(trial, trial_start_time, situation, bits, sorted_spikes) %>%
+  filter(situation == 2) %>%
+  unnest(bits) %>%
+  filter(index == "upat" & names == "fixation_cross" &!is.na(vals)) %>%
+  tidyr::unnest(sorted_spikes) %>%
+  mutate(trial_spike_time = time - trial_start_time) %>%
+  mutate(post_event_time = (trial_spike_time * 1000) - vals) %>%
+  filter(post_event_time > -2000 & post_event_time < 2000) %>%
+  ggplot() +
+geom_histogram(aes(x = post_event_time)) +  geom_vline(xintercept = 0, colour = "red", linetype = "dashed", size = 2) +
+  theme_minimal() +
+  facet_wrap(~cell)
+
+```
+

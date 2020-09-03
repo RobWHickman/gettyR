@@ -1,0 +1,69 @@
+---
+title: "plot and save"
+author: "Robert Hickman"
+date: "12/08/2020"
+output: html_document
+---
+
+```{r libraries, warning=FALSE,message=FALSE}
+library(tidyverse)
+library(patchwork)
+library(gettyR)
+
+```
+
+```{r directories, warning=FALSE,message=FALSE}
+dir <- "C:/Users/DHill/Desktop/robert_cell_sorting/sessions"
+session <- "U-2020-07-30-s2"
+save_dir <- file.path(dir, session, "figures")
+if(!dir.exists(save_dir)) {
+  dir.create(save_dir)
+}
+
+if(!dir.exists(file.path(save_dir, "unsorted_responses"))) {
+  dir.create(file.path(save_dir, "unsorted_responses"))
+}
+if(!dir.exists(file.path(save_dir, "sorted_responses"))) {
+  dir.create(file.path(save_dir, "sorted_responses"))
+}
+if(!dir.exists(file.path(save_dir, "regressions"))) {
+  dir.create(file.path(save_dir, "regressions"))
+}
+if(!dir.exists(file.path(save_dir, "cell_properties"))) {
+  dir.create(file.path(save_dir, "cell_properties"))
+}
+
+```
+
+
+```{r open_data, warning=FALSE,message=FALSE}
+spike_data <- gettyR::open_spike_data(dir, session) 
+spike_data <- spike_data %>%
+  select(trial, spikes, sorted_spikes) %>%
+  pmap_df(gettyR::rough_match_spikes) %>%
+  right_join(spike_data, by = "trial")
+trace_data <- gettyR::open_cell_trace(dir)
+```
+
+
+
+```{r trace_plot, warning=FALSE,message=FALSE}
+p1 <- gettyR::plot_cell_trace(trace_data)
+ggsave(file.path(save_dir, "cell_properties", "trace_plot.png"), p1)
+```
+
+```{r isi_plot, warning=FALSE,message=FALSE}
+p2 <- gettyR::plot_isi_histogram(spike_data$sorted_spikes)
+ggsave(file.path(save_dir, "cell_properties", "isi_plot.png"), p2)
+```
+
+```{r getty_plot, warning=FALSE,message=FALSE}
+p3 <- gettyR::plot_getty_responses(spike_data)
+ggsave(file.path(save_dir, "getty_spikes_plot.png"), p3)
+
+```
+
+```{r}
+
+```
+
