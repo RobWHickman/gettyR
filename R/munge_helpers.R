@@ -15,8 +15,8 @@ create_spike_dirs <- function(session, cells, dir = "C:/Users/DHill/Desktop/robe
   }
 
   #create dir for unsorted getty response figures
-  if(!dir.exists(file.path(save_dir, "unsorted_responses"))) {
-    dir.create(file.path(save_dir, "unsorted_responses"))
+  if(!dir.exists(file.path(save_dir_root, "unsorted_responses"))) {
+    dir.create(file.path(save_dir_root, "unsorted_responses"))
   }
 
   #create separate dir for each cell cluster

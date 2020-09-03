@@ -119,6 +119,81 @@ plot_getty_responses <- function(data) {
 #' @author Robert Hickman
 #' @export plot_getty_responses2
 
-plot_getty_responses <- function(data, situation, bit) {
+plot_getty_responses <- function(data, trial_situations, trial_bits, back_window = -1000, front_window = 2000, binwidth = 20, raster_width = 5) {
+  situation_trials <- data %>%
+    dplyr::filter(situation == trial_situations) %>%
+    dplyr::select(trial, trial_start_time_ms, situation, bits, trial_vals, spikes) %>%
+    tidyr::unnest(bits) %>%
+    dplyr::filter(index == "upat" & names %in% c(trial_bits, "error")) %>%
+    dplyr::mutate(names = case_when(
+      names == "error" ~ "error",
+      TRUE ~ "interest_bit_time"
+    )) %>%
+    tidyr::pivot_wider(names_from = "names", values_from = "vals") %>%
+    dplyr::filter(is.na(error)) %>%
+    tidyr::unnest(spikes) %>%
+    dplyr::select(-spike, -error) %>%
+    dplyr::mutate(post_event_time_ms = trial_spike_time_ms - interest_bit_time) %>%
+    dplyr::filter(post_event_time_ms < front_window & post_event_time_ms > back_window)
+
+  if(trial_bits == "win_lose") {
+    unique_trials <- situation_trials %>%
+      dplyr::filter(!duplicated(trial))
+    trial_data <- map2_df(
+      unique_trials$trial,
+      unique_trials$trial_vals,
+      function(i, v) {
+        if(length(v) > 1) {
+          x <- v %>%
+            dplyr::filter(names %in% c("monkey_bid", "computer_bid")) %>%
+            tidyr::pivot_wider(names_from = names, values_from = vals) %>%
+            mutate(trial = i)
+          return(x)
+        } else {
+          return(data.frame(computer_bid = NA, monkey_bid = NA, trial = i))
+        }
+      }) %>%
+      dplyr::mutate(win = case_when(
+        monkey_bid > computer_bid ~ 1,
+        TRUE ~ 0
+      ))
+    situation_trials <- left_join(situation_trials, trial_data, by = "trial") %>%
+      dplyr::filter(win == 1)
+  }
+
+  raster_plot <- situation_trials %>%
+    ggplot() +
+    geom_vline(xintercept = 0, colour = "red", linetype = "dotted") +
+    geom_rect(aes(xmin = post_event_time_ms, xmax = post_event_time_ms + raster_width, ymin = trial, ymax = trial + 1)) +
+    scale_x_continuous(breaks = seq(-1000, 2000, 500)) +
+    labs(
+      title = paste("unsorted nba responses to", trial_bits),
+      y = "trial count") +
+    theme_minimal()
+
+  firing_rate <- situation_trials %>%
+    dplyr::mutate(bin_time = cut(post_event_time_ms, seq(back_window, front_window, binwidth))) %>%
+    dplyr::mutate(bin_time = as.numeric(gsub("(^\\()(.*)(,.*$)", "\\2", as.character(bin_time))) + binwidth/2) %>%
+    dplyr::group_by(trial, bin_time) %>%
+    dplyr::summarise(n = n()) %>%
+    dplyr::ungroup() %>%
+    tidyr::complete(trial, bin_time, fill = list(n = 0)) %>%
+    dplyr::group_by(bin_time) %>%
+    dplyr::summarise(mean_spikes = mean(n),
+                     sem = sd(n) / sqrt(n())) %>%
+    dplyr::mutate_at(c("mean_spikes", "sem"), ~. * (1000 / binwidth))
+
+  fr_plot <- firing_rate %>%
+    ggplot(aes(x = bin_time, y = mean_spikes)) +
+    geom_vline(xintercept = 0, colour = "red", linetype = "dotted") +
+    geom_ribbon(aes(ymin = mean_spikes - sem, ymax = mean_spikes + sem), fill = "grey80", colour = "black", linetype = "dotted") +
+    geom_line(size = 2) +
+    scale_x_continuous(breaks = seq(-1000, 2000, 500), "time (ms)") +
+    labs(y = "firing rate (Hz)") +
+    theme_minimal()
+
+  plot <- raster_plot / fr_plot
+
+  return(plot)
 
 }

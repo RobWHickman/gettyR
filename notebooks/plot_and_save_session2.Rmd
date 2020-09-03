@@ -1,0 +1,46 @@
+---
+title: "plot and save 2"
+author: "Robert Hickman"
+date: "03/09/2020"
+output: html_document
+---
+
+```{r libraries, warning=FALSE,message=FALSE}
+library(tidyverse)
+library(patchwork)
+library(gettyR)
+
+```
+
+```{r directories, warning=FALSE,message=FALSE}
+dir <- "C:/Users/DHill/Desktop/robert_cell_sorting/sessions"
+session <- "U-2020-07-30-s2"
+
+spike_data <- gettyR::open_spike_data(dir, session) 
+spike_data <- spike_data %>%
+  select(trial, spikes, sorted_spikes) %>%
+  pmap_df(gettyR::rough_match_spikes) %>%
+  right_join(spike_data, by = "trial")
+trace_data <- gettyR::open_cell_trace(dir)
+
+```
+
+```{r}
+cells <- unique(unlist(spike_data$sorted_spikes) %>%
+           .[grepl("^cell", .)])
+
+create_spike_dirs(session, cells)
+```
+```{r}
+bits <- c("free_reward", "fixation_cross", "win_lose")
+situations <- c(4, 2, 2)
+
+map2(bits, situations,
+     function(b, s) {
+       p <- plot_getty_responses(spike_data, s, b)
+       path <- paste0(file.path("C:/Users/DHill/Desktop/robert_cell_sorting/sessions", session, "figures/unsorted_responses", b), ".png")
+       ggsave(plot = p, filename = path, device = "png")
+     })
+
+```
+
