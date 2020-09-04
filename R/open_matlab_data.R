@@ -81,7 +81,7 @@ open_cell_trace <- function(dir, sorted_file = "sorted_spikes.mat") {
   traces <- data[[which(rownames(data) == "values")]]
   codes <- data[[which(rownames(data) == "codes")]][,1]
   df <- data.frame(traces) %>%
-    mutate(cell = codes) %>%
+    mutate(cell = paste0("cell", codes)) %>%
     pivot_longer(cols = starts_with("X")) %>%
     mutate(time = as.numeric(gsub("^X", "", name))) %>%
     select(-name)

@@ -1,4 +1,4 @@
-#' Plot the trace data from getty
+#' Plot the trace data of sorted spike data
 #' @param trace_data The trace data exported from getty via Spike2. A df of 3 variables an n rows
 #' @param hz The frequency of the getty sampling of neuron data. Should be set at 22kHz
 #' @param ci The confidence interval to plot on the error of the neuron shape. Defaults to 1.96
@@ -6,7 +6,7 @@
 #' @author Robert Hickman
 #' @export plot_cell_trace
 
-plot_cell_trace <- function(trace_data, hz = 22000, ci = 1.96) {
+plot_cell_trace <- function(trace_data, cell, hz = 22000, ci = 1.96) {
   trace <- trace_data %>%
     group_by(cell, time) %>%
     mutate(time = time * 1000 / hz) %>%
@@ -28,7 +28,7 @@ plot_cell_trace <- function(trace_data, hz = 22000, ci = 1.96) {
   return(trace_plot)
 }
 
-#' Plot the ISI from getty
+#' Plot the ISI of sorted spike data
 #' @param spikes The sorted spike nested data column
 #'
 #' @author Robert Hickman
@@ -53,6 +53,12 @@ plot_isi_histogram <- function(spikes, bindwith = 30) {
   return(isi_histogram)
 }
 
+#' Plot the autocorrelelogram of sorted spike data
+#' @param spikes The sorted spike nested data column
+#'
+#' @author Robert Hickman
+#' @export plot_autocorr
+
 
 #' Plot the unsorted responses from getty
 #' @param data A df of data on spikes. Should include the situation, bits and spikes
@@ -61,6 +67,7 @@ plot_isi_histogram <- function(spikes, bindwith = 30) {
 #' @export plot_getty_responses
 
 plot_getty_responses <- function(data) {
+  warning("function is deprecated and will be removed")
   getty_spike_responses <- data %>%
     select(trial, trial_start_time_ms, situation, bits, spikes) %>%
     unnest(bits) %>%
@@ -165,7 +172,7 @@ plot_getty_responses <- function(data, trial_situations, trial_bits, back_window
     ggplot() +
     geom_vline(xintercept = 0, colour = "red", linetype = "dotted") +
     geom_rect(aes(xmin = post_event_time_ms, xmax = post_event_time_ms + raster_width, ymin = trial, ymax = trial + 1)) +
-    scale_x_continuous(breaks = seq(-1000, 2000, 500)) +
+    scale_x_continuous(breaks = seq(back_window, front_window, 500)) +
     labs(
       title = paste("unsorted nba responses to", trial_bits),
       y = "trial count") +
@@ -188,7 +195,7 @@ plot_getty_responses <- function(data, trial_situations, trial_bits, back_window
     geom_vline(xintercept = 0, colour = "red", linetype = "dotted") +
     geom_ribbon(aes(ymin = mean_spikes - sem, ymax = mean_spikes + sem), fill = "grey80", colour = "black", linetype = "dotted") +
     geom_line(size = 2) +
-    scale_x_continuous(breaks = seq(-1000, 2000, 500), "time (ms)") +
+    scale_x_continuous(breaks = seq(back_window, front_window, 500), "time (ms)") +
     labs(y = "firing rate (Hz)") +
     theme_minimal()
 
