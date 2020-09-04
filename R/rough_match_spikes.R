@@ -7,6 +7,7 @@
 #' @export rough_match_spikes
 
 rough_match_spikes <- function(trial, spikes, sorted_spikes) {
+  warning("function is deprecated with the insertion of the rad trial data and should not be used")
   unsorted_spike_times <- spikes$trial_spike_time_ms
   sorted_spike_times <- sorted_spikes$trial_spike_time_ms
 

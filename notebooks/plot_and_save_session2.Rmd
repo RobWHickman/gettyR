@@ -17,11 +17,6 @@ dir <- "C:/Users/DHill/Desktop/robert_cell_sorting/sessions"
 session <- "U-2020-07-30-s2"
 
 spike_data <- gettyR::open_spike_data(dir, session) 
-#spike_data$duration2 <- read.table(file.path(dir, session, "durations.txt"))$V1
-#spike_data <- spike_data %>%
-#  select(trial, spikes, sorted_spikes) %>%
-#  pmap_df(gettyR::rough_match_spikes) %>%
-#  right_join(spike_data, by = "trial")
 trace_data <- gettyR::open_cell_trace(dir)
 
 ```
@@ -43,29 +38,5 @@ situations <- c(4, 2, 2, 2)
              ggsave(plot = p, filename = path, device = "png")
            })
 
-```
-
-```{r}
-test <- spike_data %>%
-  mutate(cumtime = lag(cumsum(duration2), default = 0)) %>%
-  filter(situation == 2) %>%
-  select(bits, sorted_spikes, cumtime, trial) %>%
-  unnest(bits) %>%
-  filter(names == "fixation_cross" & index == "upat") %>%
-  unnest(sorted_spikes) %>%
-  mutate(stim_time = spike_time_ms - (vals + cumtime))
-
-p <- ggplot(test, aes(x = stim_time, fill = cell)) +
-  geom_histogram(binwidth = 30, alpha = 0.7) +
-  geom_vline(xintercept = 0, colour = "red", size = 2) +
-  scale_x_continuous(limits = c(-1000, 2000)) +
-  labs(
-    title = "fixed sorted spike times",
-    x = "time from stimulus (ms)",
-    y = "total session spikes",
-    subtitle = "response to fixation cross on BDM trials"
-  ) +
-  theme_minimal() +
-  facet_wrap(~cell)
 ```
 
