@@ -1,4 +1,4 @@
-#' Plot the trace data of sorted spike data
+#' Plot the trace data of sorted spike trace data
 #' @param trace_data The trace data exported from getty via Spike2. A df of 3 variables an n rows
 #' @param hz The frequency of the getty sampling of neuron data. Should be set at 22kHz
 #' @param ci The confidence interval to plot on the error of the neuron shape. Defaults to 1.96
@@ -28,7 +28,7 @@ plot_cell_trace <- function(trace_data, cell, hz = 22000, ci = 1.96) {
   return(trace_plot)
 }
 
-#' Plot the ISI of sorted spike data
+#' Plot the ISI of sorted spike trace data
 #' @param spikes The sorted spike nested data column
 #'
 #' @author Robert Hickman
@@ -53,7 +53,13 @@ plot_isi_histogram <- function(spikes, bindwith = 30) {
   return(isi_histogram)
 }
 
-#' Plot the autocorrelelogram of sorted spike data
+#' Plot the autocorrelelogram of sorted spike trace data
+#' @param spikes The sorted spike nested data column
+#'
+#' @author Robert Hickman
+#' @export plot_autocorr
+
+#' Plot the PCA of sorted spike trace data
 #' @param spikes The sorted spike nested data column
 #'
 #' @author Robert Hickman

@@ -17,7 +17,7 @@ dir <- "C:/Users/DHill/Desktop/robert_cell_sorting/sessions"
 session <- "U-2020-07-30-s2"
 
 spike_data <- gettyR::open_spike_data(dir, session) 
-spike_data$duration2 <- read.table(file.path(dir, session, "durations.txt"))$V1
+#spike_data$duration2 <- read.table(file.path(dir, session, "durations.txt"))$V1
 #spike_data <- spike_data %>%
 #  select(trial, spikes, sorted_spikes) %>%
 #  pmap_df(gettyR::rough_match_spikes) %>%

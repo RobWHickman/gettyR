@@ -108,10 +108,28 @@ open_spike_data <- function(dir, session, sorted_file = "sorted_spikes.mat") {
            trial = map_dbl(time, function(s) last(which(data$trial_start_time_ms < s)))) %>%
     rename(spike_time_ms = time)
 
+  durations <- get_rad_durations(dir, session, duration_file = "durations.txt")
+
   data <- left_join(data, sorted_spikes, by = "trial") %>%
-    mutate(trial_spike_time_ms = spike_time_ms - trial_start_time_ms) %>%
-    tidyr::nest(sorted_spikes = c(spike_time_ms, trial_spike_time_ms, cell))
+    dplyr::left_join(., durations, by = "trial") %>%
+    dplyr::mutate(trial_spike_time_ms = spike_time_ms - radtrial_start_time_ms) %>%
+    tidyr::nest(sorted_spikes = c(spike_time_ms, trial_spike_time_ms, cell)) %>%
+    dplyr::select(trial, duration, trial_start_time_ms, radduration, radtrial_start_time_ms, trial_addvals, trial_vals, bits, spikes, sorted_spikes)
 
   return(data)
 }
 
+#' Open and brief munging of the durations exported from the RAD file
+#' @param session The recording session ID (date and session) for the directory to live in
+#' @param dir The base directory where the session are found
+#' @param duration_file The name of the durations file. Defaults to "durations.txt"
+#'
+#' @author Robert Hickman
+#' @export create_spike_dirs
+
+get_rad_durations <- function(dir, session, duration_file = "durations.txt") {
+  durations <- read.table(file.path(dir, session, duration_file)) %>%
+    dplyr::mutate(trial = 1:nrow(.), radtrial_start_time_ms = lag(cumsum(V1), default = 0)) %>%
+    dplyr::select(radduration = V1, trial, radtrial_start_time_ms)
+  return(durations)
+}
