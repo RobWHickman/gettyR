@@ -48,8 +48,18 @@ p2 <- gettyR::plot_isi_histogram(spike_data$sorted_spikes)
 ```
 
 ```{r}
-pca_data <- trace_data %>%
-  dplyr::mutate(time = paste0("t", time)) %>%
-  tidyr::pivot_wider(id_cols = c(cell, spike_no), names_from = time, values_from = value)
+plot_and_save_cluster_data <- function(specific_cell, trace_data = trace_data, spike_data = spike_data$sorted_spikes) {
+  trace_plot <- gettyR::plot_cell_trace(trace_data = trace_data, specific_cell = specific_cell)
+  isi_histogram <- gettyR::plot_isi_histogram(spikes = spike_data, specific_cell = specific_cell)
+  pca1 <- gettyR::plot_pca(trace_data = trace_data, specific_cell = specific_cell, xaxis = "PC1", yaxis = "PC2")
+  pca2 <- gettyR::plot_pca(trace_data = trace_data, specific_cell = specific_cell, xaxis = "PC1", yaxis = "PC3")
+  pca3 <- gettyR::plot_pca(trace_data = trace_data, specific_cell = specific_cell, xaxis = "PC3", yaxis = "PC2")
+}
+```
+
+```{r}
+cells <- unique(trace_data$cell)
+
+walk(cells, plot_and_save_cluster_data)
 ```
 

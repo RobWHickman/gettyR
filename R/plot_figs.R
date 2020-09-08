@@ -2,53 +2,64 @@
 #' @param trace_data The trace data exported from getty via Spike2. A df of 3 variables an n rows
 #' @param hz The frequency of the getty sampling of neuron data. Should be set at 22kHz
 #' @param ci The confidence interval to plot on the error of the neuron shape. Defaults to 1.96
+#' @param specific_cell A specific cell to plot or to highlight all cells. Defaults to NULL
 #'
 #' @author Robert Hickman
 #' @export plot_cell_trace
 
-plot_cell_trace <- function(trace_data, cell, hz = 22000, ci = 1.96) {
+plot_cell_trace <- function(trace_data, cell, hz = 22000, ci = 1.96, specific_cell = NULL) {
+  if(!is.null(specific_cell)) trace_data <- dplyr::filter(trace_data, cell == specific_cell)
+
   trace <- trace_data %>%
     group_by(cell, time) %>%
     mutate(time = time * 1000 / hz) %>%
-    summarise(m = mean(value),
+    summarise(mu = mean(value),
               sd = sd(value),
               n = n()) %>%
-    mutate(cell = paste0(cell, ": ", n, " spikes"))
+    mutate(cell_title = paste0(cell, ": ", n, " spikes"))
 
-  trace_plot <- ggplot(trace, aes(x = time, y = m)) +
-    geom_ribbon(aes(ymin = m - ci*sd, ymax = m + ci*sd), alpha = 0.5, fill = "grey80") +
+  trace_plot <- ggplot(trace, aes(x = time, y = mu)) +
+    geom_ribbon(aes(ymin = mu - ci*sd, ymax = mu + ci*sd), alpha = 0.5, fill = "grey80") +
     geom_line(aes(colour = cell), size = 2) +
     scale_colour_discrete(guide = FALSE) +
-    labs(title = "cell traces",
-         x = "time (/ms)",
-         y = "voltage change") +
+    labs(
+      title = "cell trace",
+      x = "time (/ms)",
+      y = "voltage change"
+    ) +
     theme_minimal() +
-    facet_wrap(~cell)
+    facet_wrap(~cell_title)
 
   return(trace_plot)
 }
 
 #' Plot the ISI of sorted spike trace data
 #' @param spikes The sorted spike nested data column
+#' @param binwidth The binwidth of the histogram produced
+#' @param specific_cell A specific cell to plot or to highlight all cells. Defaults to NULL
 #'
 #' @author Robert Hickman
 #' @export plot_isi_histogram
 
-plot_isi_histogram <- function(spikes, bindwith = 30) {
+plot_isi_histogram <- function(spikes, bindwith = 30, specific_cell = NULL) {
   isi_data <- do.call(rbind, spikes) %>%
     arrange(spike_time_ms) %>%
     group_by(cell) %>%
     mutate(isi = lead(spike_time_ms) - spike_time_ms) %>%
     filter(!is.na(cell) & !is.na(isi) & isi < 1000)
 
+  if(!is.null(specific_cell)) isi_data <- dplyr::filter(isi_data, cell == specific_cell)
+
   isi_histogram <- ggplot(isi_data, aes(x = isi)) +
     geom_histogram(aes(fill = cell), alpha = 0.8) +
     scale_fill_discrete(guide = FALSE) +
-    labs(title = "interspike interval histogram",
-         x = "ISI (/ms)",
-         y = "count") +
+    labs(
+      title = "interspike interval histogram",
+      x = "isi (/ms)",
+      y = "count"
+    ) +
     theme_minimal() +
-    facet_wrap(~cell, scales = "free_y")
+  facet_wrap(~cell, scales = "free_y")
 
   return(isi_histogram)
 }
@@ -62,11 +73,47 @@ plot_isi_histogram <- function(spikes, bindwith = 30) {
 #' Plot the PCA of sorted spike trace data
 #' @param trace_data The trace data exported from getty via Spike2. A df of 3 variables an n rows
 #' @param specific_cell A specific cell to plot or to highlight all cells. Defaults to NULL
+#' @param xaxis Which principal component to plot on the x axis. PC1-5
+#' @param yaxis Which principal component to plot on the y axis. PC1-5
 #'
 #' @author Robert Hickman
 #' @export plot_pca
 
-plot_pca <- function(trace_data, specific_cell = NULL)
+plot_pca <- function(trace_data, specific_cell = NULL, xaxis = "PC1", yaxis = "PC2") {
+  if(!xaxis %in% paste0("PC", 1:5) | !yaxis %in% paste0("PC", 1:5)) {
+    errorCondition("axes must be PC1-5")
+  }
+
+  pca_data <- trace_data %>%
+    dplyr::mutate(time = paste0("t", time)) %>%
+    tidyr::pivot_wider(id_cols = c(cell, spike_no), names_from = time, values_from = value) %>%
+    recipe(~., data = .) %>%
+    update_role(cell, spike_no, new_role = "id") %>%
+    recipes::step_center(all_predictors()) %>%
+    recipes::step_scale(all_predictors()) %>%
+    recipes::step_pca(all_predictors()) %>%
+    recipes::prep() %>%
+    recipes::juice() %>%
+    dplyr::rename(x_dim = !!xaxis, ydim = !!yaxis)
+
+  pca_plot <- ggplot(pca_data, aes(x = x_dim, y = ydim)) +
+    geom_point(data = dplyr::select(pca_data, -cell), colour = "grey80", alpha = 0.65) +
+    theme_minimal() +
+    labs(
+      title = "pca of cell trace",
+      x = xaxis,
+      y = yaxis
+    )
+
+  if(is.null(specific_cell)) {
+    pca_plot <- pca_plot +
+      geom_point(aes(colour = cell)) +
+      facet_wrap(~cell)
+  } else {
+    pca_plot <- pca_plot +
+      geom_point(data = dplyr::filter(pca_data, cell == specific_cell), colour = "dodgerblue")
+  }
+}
 
 
 #' Plot the unsorted responses from getty
