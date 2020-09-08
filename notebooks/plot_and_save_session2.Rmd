@@ -7,6 +7,7 @@ output: html_document
 
 ```{r libraries, warning=FALSE,message=FALSE}
 library(tidyverse)
+library(tidymodels)
 library(patchwork)
 library(gettyR)
 
@@ -31,12 +32,24 @@ create_spike_dirs(session, cells)
 bits <- c("free_reward", "fixation_cross", "win_lose", "fractal_display")
 situations <- c(4, 2, 2, 2)
 
- x <- map2(bits, situations,
-           function(b, s) {
-             p <- plot_getty_responses(spike_data, s, b)
-             path <- paste0(file.path("C:/Users/DHill/Desktop/robert_cell_sorting/sessions", session, "figures/unsorted_responses", b), ".png")
-             ggsave(plot = p, filename = path, device = "png")
-           })
+walk2(bits, situations,
+      function(b, s) {
+        p <- plot_getty_responses(spike_data, s, b)
+        path <- paste0(file.path("C:/Users/DHill/Desktop/robert_cell_sorting/sessions", session, "figures/unsorted_responses", b), ".png")
+        ggsave(plot = p, filename = path, device = "png")
+      })
 
+```
+
+
+```{r}
+p1 <- gettyR::plot_cell_trace(trace_data)
+p2 <- gettyR::plot_isi_histogram(spike_data$sorted_spikes)
+```
+
+```{r}
+pca_data <- trace_data %>%
+  dplyr::mutate(time = paste0("t", time)) %>%
+  tidyr::pivot_wider(id_cols = c(cell, spike_no), names_from = time, values_from = value)
 ```
 

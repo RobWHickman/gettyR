@@ -16,8 +16,8 @@ plot_cell_trace <- function(trace_data, cell, hz = 22000, ci = 1.96) {
     mutate(cell = paste0(cell, ": ", n, " spikes"))
 
   trace_plot <- ggplot(trace, aes(x = time, y = m)) +
-    geom_ribbon(aes(ymin = m - ci*sd, ymax = m + ci*sd), alpha = 0.5) +
-    geom_line(aes(colour = cell)) +
+    geom_ribbon(aes(ymin = m - ci*sd, ymax = m + ci*sd), alpha = 0.5, fill = "grey80") +
+    geom_line(aes(colour = cell), size = 2) +
     scale_colour_discrete(guide = FALSE) +
     labs(title = "cell traces",
          x = "time (/ms)",
@@ -60,10 +60,13 @@ plot_isi_histogram <- function(spikes, bindwith = 30) {
 #' @export plot_autocorr
 
 #' Plot the PCA of sorted spike trace data
-#' @param spikes The sorted spike nested data column
+#' @param trace_data The trace data exported from getty via Spike2. A df of 3 variables an n rows
+#' @param specific_cell A specific cell to plot or to highlight all cells. Defaults to NULL
 #'
 #' @author Robert Hickman
-#' @export plot_autocorr
+#' @export plot_pca
+
+plot_pca <- function(trace_data, specific_cell = NULL)
 
 
 #' Plot the unsorted responses from getty

@@ -24,9 +24,10 @@ open_mat <- function(file) {
     spike_matrix <- t(single_trial_data[[which(names(single_trial_data) == "neuron")]])
     if(length(spike_matrix) == 0 ) { spike_matrix <- matrix(NA)}
 
-    spikes <-
-      data.frame(trial_spike_time_ms = spike_matrix,
-                 spike = 1)
+    spikes <- data.frame(
+      trial_spike_time_ms = spike_matrix,
+      spike = 1
+    )
 
     bits <- data.frame(
       names = rep(name_params("bits"), each = 3),
@@ -81,10 +82,13 @@ open_cell_trace <- function(dir, sorted_file = "sorted_spikes.mat") {
   traces <- data[[which(rownames(data) == "values")]]
   codes <- data[[which(rownames(data) == "codes")]][,1]
   df <- data.frame(traces) %>%
-    mutate(cell = paste0("cell", codes)) %>%
-    pivot_longer(cols = starts_with("X")) %>%
-    mutate(time = as.numeric(gsub("^X", "", name))) %>%
-    select(-name)
+    dplyr::mutate(cell = paste0("cell", codes)) %>%
+    dplyr::group_by(cell) %>%
+    dplyr::mutate(spike_no = 1:n()) %>%
+    dplyr::ungroup() %>%
+    tidyr::pivot_longer(cols = starts_with("X")) %>%
+    dplyr::mutate(time = as.numeric(gsub("^X", "", name))) %>%
+    dplyr::select(-name)
 
   return(df)
 }
@@ -114,7 +118,7 @@ open_spike_data <- function(dir, session, sorted_file = "sorted_spikes.mat") {
     dplyr::left_join(., durations, by = "trial") %>%
     dplyr::mutate(trial_spike_time_ms = spike_time_ms - radtrial_start_time_ms) %>%
     tidyr::nest(sorted_spikes = c(spike_time_ms, trial_spike_time_ms, cell)) %>%
-    dplyr::select(trial, duration, trial_start_time_ms, radduration, radtrial_start_time_ms, trial_addvals, trial_vals, bits, spikes, sorted_spikes)
+    dplyr::select(trial, situation, duration, trial_start_time_ms, radduration, radtrial_start_time_ms, trial_addvals, trial_vals, bits, spikes, sorted_spikes)
 
   return(data)
 }
