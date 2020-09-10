@@ -39,7 +39,7 @@ situations <- c(4, 2, 2, 2)
 walk2(bits, situations,
       function(b, s) {
         p <- plot_getty_responses(spike_data, s, b)
-        path <- paste0(file.path("C:/Users/DHill/Desktop/robert_cell_sorting/sessions", session, "figures/unsorted_responses", b), ".png")
+        path <- paste0(file.path(dir, session, "figures/unsorted_responses", b), ".png")
         ggsave(plot = p, filename = path, device = "png")
       })
 
@@ -52,31 +52,12 @@ p2 <- gettyR::plot_isi_histogram(spike_data$sorted_spikes)
 ```
 
 ```{r}
-plot_and_save_cluster_data <- function(specific_cell, trace_data = trace_data, sorted_spikes = spike_data$sorted_spikes, session) {
-  if(is.null(specific_cell)) {
-    n_spikes <- do.call(sum, lapply(sorted_spikes, nrow))
-  } else {
-    n_spikes <- do.call(sum, lapply(sorted_spikes, function(s) nrow(dplyr::filter(s, cell == specific_cell))))
-  }
-  
-  trace_plot <- gettyR::plot_cell_trace(trace_data = trace_data, specific_cell = specific_cell)
-  isi_histogram <- gettyR::plot_isi_histogram(spikes = sorted_spikes, specific_cell = specific_cell)
-  autocorr_histogram <- gettyR::plot_autocorr(spikes = sorted_spikes, specific_cell = specific_cell)
-  pca1 <- gettyR::plot_pca(trace_data = trace_data, specific_cell = specific_cell, xaxis = "PC1", yaxis = "PC2")
-  pca2 <- gettyR::plot_pca(trace_data = trace_data, specific_cell = specific_cell, xaxis = "PC1", yaxis = "PC3")
-  pca3 <- gettyR::plot_pca(trace_data = trace_data, specific_cell = specific_cell, xaxis = "PC3", yaxis = "PC2")
-  
-  patchwork <- (trace_plot | isi_histogram | autocorr_histogram) / (pca1 | pca2 | pca3)
-  patchwork <- patchwork + 
-    plot_annotation(
-      title = paste("Sorted cell profile for", specific_cell, "on", session),
-      subtitle = paste(n_spikes, "sorted spikes")
-    )
-  return(patchwork)
-}
 
-p <- plot_and_save_cluster_data(specific_cell = NULL)
-px <- plot_and_save_cluster_data(specific_cell = "cell1")
 ```
 
+```{r plot_cells}
+cells <- c("NULL", unique(trace_data$cell))
+walk(cells, plot_and_save_cluster_data, session_folder = session)
+
+```
 

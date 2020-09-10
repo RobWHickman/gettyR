@@ -8,7 +8,7 @@
 #' @export plot_cell_trace
 
 plot_cell_trace <- function(trace_data, cell, hz = 22000, ci = 1.96, specific_cell = NULL) {
-  if(!is.null(specific_cell)) trace_data <- dplyr::filter(trace_data, cell == specific_cell)
+  if(!is.null(specific_cell)) trace_data <- trace_data %>% dplyr::filter(cell == specific_cell)
 
   trace <- trace_data %>%
     group_by(cell, time) %>%
@@ -169,6 +169,41 @@ plot_pca <- function(trace_data, specific_cell = NULL, xaxis = "PC1", yaxis = "P
     pca_plot <- pca_plot +
       geom_point(data = dplyr::filter(pca_data, cell == specific_cell), colour = "dodgerblue")
   }
+}
+
+#' Plot the profile of individual or all cells from a recording session
+#' @param specific_cell Whether to plot a specific cell referenced by name or all (NULL)
+#' @param trace_data The trace data exported from getty via Spike2. A df of 3 variables an n rows
+#' @param specific_cell A specific cell to plot or to highlight all cells. Defaults to NULL
+#' @param session_folder The session folder to save the output plot into
+#'
+#' @author Robert Hickman
+#' @export plot_and_save_cluster_data
+
+plot_and_save_cluster_data <- function(specific_cell, trace_df = trace_data, sorted_spikes_df = spike_data$sorted_spikes, session_folder) {
+  if(is.null(specific_cell)) {
+    n_spikes <- do.call(sum, lapply(sorted_spikes_df, nrow))
+    plot_path <- paste0(file.path(dir, session, "figures/"), "cell_profiles.png")
+  } else {
+    n_spikes <- do.call(sum, lapply(sorted_spikes_df, function(s) nrow(dplyr::filter(s, cell == specific_cell))))
+    plot_path <- paste0(file.path(dir, session, "figures/", specific_cell), "/cell_profile.png")
+  }
+
+  trace_plot <- gettyR::plot_cell_trace(trace_data = trace_df, specific_cell = specific_cell)
+  isi_histogram <- gettyR::plot_isi_histogram(spikes = sorted_spikes_df, specific_cell = specific_cell)
+  autocorr_histogram <- gettyR::plot_autocorr(spikes = sorted_spikes_df, specific_cell = specific_cell)
+  pca1 <- gettyR::plot_pca(trace_data = trace_df, specific_cell = specific_cell, xaxis = "PC1", yaxis = "PC2")
+  pca2 <- gettyR::plot_pca(trace_data = trace_df, specific_cell = specific_cell, xaxis = "PC1", yaxis = "PC3")
+  pca3 <- gettyR::plot_pca(trace_data = trace_df, specific_cell = specific_cell, xaxis = "PC3", yaxis = "PC2")
+
+  patchwork <- (trace_plot | isi_histogram | autocorr_histogram) / (pca1 | pca2 | pca3)
+  patchwork <- patchwork +
+    plot_annotation(
+      title = paste("Sorted cell profile for", specific_cell, "on", session),
+      subtitle = paste(n_spikes, "sorted spikes")
+    )
+
+  ggsave(plot = patchwork, filename = plot_path, device = "png")
 }
 
 
