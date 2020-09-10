@@ -236,7 +236,7 @@ plot_getty_responses <- function(data) {
 #' @param data A df of data on spikes. Should include the situation, bits and spikes
 #'
 #' @author Robert Hickman
-#' @export plot_getty_responses2
+#' @export plot_getty_responses
 
 plot_getty_responses <- function(data, trial_situations, trial_bits, back_window = -1000, front_window = 2000, binwidth = 20, raster_width = 5) {
   situation_trials <- data %>%
@@ -314,5 +314,69 @@ plot_getty_responses <- function(data, trial_situations, trial_bits, back_window
   plot <- raster_plot / fr_plot
 
   return(plot)
+}
 
+#' Plot a simple raster of 2d spike data
+#' @param data A df of data on spikes. Spikes times and trial number
+#' @param epoch_time A numeric of the specific epoch time to plot
+#' @param back_window The number of ms to plot backwards from the event time
+#' @param front_window The number of ms to plot forwards from the event time
+#' @param raster_width The width of the raster blocks in ms
+#'
+#' @author Robert Hickman
+#' @export plot_simple_raster
+
+plot_simple_raster <- function(data, epoch_time, back_window = -1000, front_window = 2000, raster_width = 5) {
+  relative_spike_times <- data %>%
+    dplyr::mutate(epoch_time = spike_time - (epoch_time*1000))
+
+  raster_plot <- relative_spike_times %>%
+    ggplot() +
+    geom_vline(xintercept = 0, colour = "red", linetype = "dotted") +
+    geom_rect(aes(xmin = epoch_time, xmax = epoch_time + raster_width, ymin = trial, ymax = trial + 1)) +
+    scale_x_continuous(limits = c(back_window, front_window), breaks = seq(back_window, front_window, 500)) +
+    labs(
+      title = paste("raster plot"),
+      y = "trial count") +
+    theme_minimal()
+
+  return(raster_plot)
+}
+
+#' Plot a simple firing rate of 2d spike data
+#' @param data A df of data on spikes. Spikes times and trial number
+#' @param epoch_time A numeric of the specific epoch time to plot
+#'
+#' @author Robert Hickman
+#' @export plot_simple_firing_rate
+
+plot_simple_firing_rate <- function(data, epoch_time, back_window = -1000, front_window = 2000, binwidth = 20) {
+
+  firing_rate <- data %>%
+    dplyr::mutate(epoch_time = spike_time - (epoch_time*1000)) %>%
+    dplyr::mutate(bin_time = cut(epoch_time, seq(back_window, front_window, binwidth))) %>%
+    dplyr::filter(!is.na(bin_time)) %>%
+    dplyr::mutate(bin_time = as.numeric(gsub("(^\\()(.*)(,.*$)", "\\2", as.character(bin_time))) + binwidth/2) %>%
+    dplyr::group_by(trial, bin_time) %>%
+    dplyr::summarise(n = n()) %>%
+    dplyr::ungroup() %>%
+    tidyr::complete(trial, bin_time, fill = list(n = 0)) %>%
+    dplyr::group_by(bin_time) %>%
+    dplyr::summarise(mean_spikes = mean(n),
+                     sem = sd(n) / sqrt(n())) %>%
+    dplyr::mutate_at(c("mean_spikes", "sem"), ~. * (1000 / binwidth))
+
+  fr_plot <- firing_rate %>%
+    ggplot(aes(x = bin_time, y = mean_spikes)) +
+    geom_vline(xintercept = 0, colour = "red", linetype = "dotted") +
+    geom_ribbon(aes(ymin = mean_spikes - sem, ymax = mean_spikes + sem), fill = "grey80", colour = "black", linetype = "dotted") +
+    geom_line(size = 2) +
+    scale_x_continuous(limits = c(back_window, front_window), breaks = seq(back_window, front_window, 500), "time (ms)") +
+    labs(
+      title = "firing rate plot",
+      y = "firing rate (Hz)"
+    ) +
+    theme_minimal()
+
+  return(fr_plot)
 }

@@ -1,0 +1,54 @@
+---
+title: "fake data testing"
+author: "Robert Hickman"
+date: "10/09/2020"
+output: html_document
+---
+
+```{r libraries, warning=FALSE,message=FALSE}
+library(tidyverse)
+library(tidymodels)
+library(patchwork)
+library(gettyR)
+
+```
+
+```{r}
+epoch1_t <- 1.2
+epoch2_t <- 3
+epoch3_t <- 4.5
+
+fake_test_spikes <- purrr::imap_dfr(
+  create_test_data(t1 = epoch1_t, t2 = epoch2_t, t3 = epoch3_t), 
+  function(x, y) data.frame(spike_time = x, trial = y)
+)
+```
+
+```{r}
+p1 <- gettyR::plot_simple_raster(fake_test_spikes, epoch1_t) / gettyR::plot_simple_firing_rate(fake_test_spikes, epoch1_t)
+p2 <- gettyR::plot_simple_raster(fake_test_spikes, epoch2_t) / gettyR::plot_simple_firing_rate(fake_test_spikes, epoch2_t)
+p3 <- gettyR::plot_simple_raster(fake_test_spikes, epoch3_t) / gettyR::plot_simple_firing_rate(fake_test_spikes, epoch3_t)
+
+```
+
+```{r}
+dir <- "C:/Users/DHill/Desktop/robert_cell_sorting/sessions"
+session <- "U-2020-07-30-s2"
+
+real_test_spikes <- gettyR::open_spike_data(dir, session) 
+
+z <- real_test_spikes %>%
+    dplyr::filter(situation == 2) %>%
+    dplyr::select(trial ,bits, sorted_spikes) %>%
+    tidyr::unnest(bits) %>%
+    dplyr::filter(index == "upat" & names == "fixation_cross") %>%
+    tidyr::unnest(sorted_spikes) %>%
+    dplyr::mutate(epoch_time = trial_spike_time_ms - vals)
+p <- ggplot(z, aes(x = epoch_time, fill = cell)) +
+  geom_histogram() +
+  geom_vline(xintercept = 0, linetype = "dotted", colour = "red") +
+  scale_x_continuous(limits = c(-1000, 2000)) +
+  theme_minimal() +
+  facet_wrap(~cell)
+```
+
