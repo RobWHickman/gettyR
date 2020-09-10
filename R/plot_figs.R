@@ -21,14 +21,20 @@ plot_cell_trace <- function(trace_data, cell, hz = 22000, ci = 1.96, specific_ce
   trace_plot <- ggplot(trace, aes(x = time, y = mu)) +
     geom_ribbon(aes(ymin = mu - ci*sd, ymax = mu + ci*sd), alpha = 0.5, fill = "grey80") +
     geom_line(aes(colour = cell), size = 2) +
-    scale_colour_discrete(guide = FALSE) +
     labs(
       title = "cell trace",
       x = "time (/ms)",
       y = "voltage change"
     ) +
-    theme_minimal() +
-    facet_wrap(~cell_title)
+    theme_minimal()
+
+  if(is.null(specific_cell)) {
+    trace_plot <- trace_plot +
+      scale_fill_discrete(guide = FALSE) +
+      facet_wrap(~cell_title)
+  } else {
+    trace_plot <- trace_plot + scale_colour_manual(values = "dodgerblue", guide = FALSE)
+  }
 
   return(trace_plot)
 }
@@ -41,34 +47,84 @@ plot_cell_trace <- function(trace_data, cell, hz = 22000, ci = 1.96, specific_ce
 #' @author Robert Hickman
 #' @export plot_isi_histogram
 
-plot_isi_histogram <- function(spikes, bindwith = 30, specific_cell = NULL) {
+plot_isi_histogram <- function(spikes, binwidth = 30, specific_cell = NULL) {
   isi_data <- do.call(rbind, spikes) %>%
-    arrange(spike_time_ms) %>%
-    group_by(cell) %>%
-    mutate(isi = lead(spike_time_ms) - spike_time_ms) %>%
-    filter(!is.na(cell) & !is.na(isi) & isi < 1000)
+    dplyr::arrange(spike_time_ms) %>%
+    dplyr::group_by(cell) %>%
+    dplyr::mutate(isi = lead(spike_time_ms) - spike_time_ms) %>%
+    dplyr::filter(!is.na(cell) & !is.na(isi) & isi < 1000)
 
   if(!is.null(specific_cell)) isi_data <- dplyr::filter(isi_data, cell == specific_cell)
 
   isi_histogram <- ggplot(isi_data, aes(x = isi)) +
-    geom_histogram(aes(fill = cell), alpha = 0.8) +
-    scale_fill_discrete(guide = FALSE) +
+    geom_histogram(aes(fill = cell), alpha = 0.8, binwidth = binwidth) +
     labs(
       title = "interspike interval histogram",
       x = "isi (/ms)",
       y = "count"
     ) +
-    theme_minimal() +
-  facet_wrap(~cell, scales = "free_y")
+    theme_minimal()
+
+  if(is.null(specific_cell)) {
+    isi_histogram <- isi_histogram +
+      scale_fill_discrete(guide = FALSE) +
+      facet_wrap(~cell, scales = "free_y")
+  } else {
+    isi_histogram <- isi_histogram + scale_fill_manual(values = "dodgerblue", guide = FALSE)
+  }
 
   return(isi_histogram)
 }
 
 #' Plot the autocorrelelogram of sorted spike trace data
 #' @param spikes The sorted spike nested data column
+#' @param binwidth The binwidth of the histogram produced
+#' @param corrs
+#' @param specific_cell A specific cell to plot or to highlight all cells. Defaults to NULL
 #'
 #' @author Robert Hickman
 #' @export plot_autocorr
+
+plot_autocorr <- function(spikes, binwidth = 30, corrs = 50, specific_cell = NULL) {
+  spikes <- do.call(rbind, spikes)
+
+  if(!is.null(specific_cell)) spikes <- dplyr::filter(spikes, cell == specific_cell)
+
+  binned_spikes <- spikes %>%
+    split(f = .$cell) %>%
+    map_df(function(s) {
+      binned <- s$spike_time_ms %>%
+        cut(seq(0, max(.)+binwidth, binwidth)) %>%
+        table()
+      corr <- ccf(binned, binned, corrs, plot = FALSE)
+      corr$acf[corrs+1] <- 0
+
+      df <- data.frame(
+        acf = corr$acf,
+        time = seq(-corrs, corrs, 1) * binwidth,
+        cell = unique(s$cell)
+      )
+    })
+
+  autocorr_plot <- ggplot(binned_spikes, aes(x = time, y = acf)) +
+    geom_bar(stat = "identity", aes(fill = cell), colour = "black", alpha = 0.7) +
+    labs(
+      title = "autocorrelation histogram",
+      x = "time (/ms)",
+      y = "R"
+    ) +
+    theme_minimal()
+
+  if(is.null(specific_cell)) {
+    autocorr_plot <- autocorr_plot +
+      scale_fill_discrete(guide = FALSE) +
+      facet_wrap(~cell)
+  } else {
+    autocorr_plot <- autocorr_plot + scale_fill_manual(values = "dodgerblue", guide = FALSE)
+  }
+
+  return(autocorr_plot)
+}
 
 #' Plot the PCA of sorted spike trace data
 #' @param trace_data The trace data exported from getty via Spike2. A df of 3 variables an n rows
