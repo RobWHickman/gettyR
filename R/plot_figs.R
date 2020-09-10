@@ -176,17 +176,18 @@ plot_pca <- function(trace_data, specific_cell = NULL, xaxis = "PC1", yaxis = "P
 #' @param trace_data The trace data exported from getty via Spike2. A df of 3 variables an n rows
 #' @param specific_cell A specific cell to plot or to highlight all cells. Defaults to NULL
 #' @param session_folder The session folder to save the output plot into
+#' @param dir_folder The upper directory folder to save the output plot into
 #'
 #' @author Robert Hickman
 #' @export plot_and_save_cluster_data
 
-plot_and_save_cluster_data <- function(specific_cell, trace_df = trace_data, sorted_spikes_df = spike_data$sorted_spikes, session_folder) {
+plot_and_save_cluster_data <- function(specific_cell, trace_df = trace_data, sorted_spikes_df = spike_data$sorted_spikes, session_folder, dir_folder) {
   if(is.null(specific_cell)) {
     n_spikes <- do.call(sum, lapply(sorted_spikes_df, nrow))
-    plot_path <- paste0(file.path(dir, session, "figures/"), "cell_profiles.png")
+    plot_path <- paste0(file.path(dir_folder, session_folder, "figures/"), "cell_profiles.png")
   } else {
     n_spikes <- do.call(sum, lapply(sorted_spikes_df, function(s) nrow(dplyr::filter(s, cell == specific_cell))))
-    plot_path <- paste0(file.path(dir, session, "figures/", specific_cell), "/cell_profile.png")
+    plot_path <- paste0(file.path(dir_folder, session_folder, "figures", specific_cell), "/cell_profile.png")
   }
 
   trace_plot <- gettyR::plot_cell_trace(trace_data = trace_df, specific_cell = specific_cell)
