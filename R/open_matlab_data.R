@@ -63,7 +63,13 @@ open_mat <- function(file) {
 open_sorted_spikes <- function(file) {
   x <- R.matlab::readMat(file)
 
-  data <- x[[names(x)]]
+  if(length(names(x)) > 1) {
+    channel = names(x)[length(names(x))]
+  } else {
+    channel = names(x)
+  }
+
+  data <- x[[channel]]
 
   times <- data[[which(rownames(data) == "times")]]
   codes <- data[[which(rownames(data) == "codes")]][,1]
@@ -78,7 +84,14 @@ open_cell_trace <- function(dir, sorted_file = "sorted_spikes.mat") {
 
   x <- R.matlab::readMat(file.path(dir, session, sorted_file))
 
-  data <- x[[names(x)]]
+  if(length(names(x)) > 1) {
+    channel = names(x)[length(names(x))]
+  } else {
+    channel = names(x)
+  }
+
+  data <- x[[channel]]
+
   traces <- data[[which(rownames(data) == "values")]]
   codes <- data[[which(rownames(data) == "codes")]][,1]
   df <- data.frame(traces) %>%
@@ -107,12 +120,12 @@ open_spike_data <- function(dir, session, sorted_file = "sorted_spikes.mat") {
     return(x)
   })
 
+  durations <- get_rad_durations(dir, session, duration_file = "durations.txt")
+
   sorted_spikes <- gettyR::open_sorted_spikes(file.path(dir, session, sorted_file)) %>%
     mutate(cell = paste0("cell", cell),
-           trial = map_dbl(time, function(s) last(which(data$trial_start_time_ms < s)))) %>%
+           trial = map_dbl(time, function(s) last(which(durations$radtrial_start_time_ms < s)))) %>%
     rename(spike_time_ms = time)
-
-  durations <- get_rad_durations(dir, session, duration_file = "durations.txt")
 
   data <- left_join(data, sorted_spikes, by = "trial") %>%
     dplyr::left_join(., durations, by = "trial") %>%

@@ -17,6 +17,10 @@ library(gettyR)
 dir <- "C:/Users/DHill/Desktop/robert_cell_sorting/sessions"
 session <- "U-2020-07-30-s2"
 
+dir <- "C:/Users/DHill/Desktop/test_uly_data"
+session <- "test_session"
+
+
 spike_data <- gettyR::open_spike_data(dir, session) 
 trace_data <- gettyR::open_cell_trace(dir)
 
@@ -26,7 +30,7 @@ trace_data <- gettyR::open_cell_trace(dir)
 cells <- unique(unlist(spike_data$sorted_spikes) %>%
            .[grepl("^cell", .)])
 
-create_spike_dirs(session, cells)
+create_spike_dirs(dir = dir, session, cells)
 ```
 ```{r plot_unsorted_data, warning=FALSE,message=FALSE}
 bits <- c("free_reward", "fixation_cross", "win_lose", "fractal_display")
@@ -71,13 +75,8 @@ plot_and_save_cluster_data <- function(specific_cell, trace_data = trace_data, s
   return(patchwork)
 }
 
-
-```
-
-```{r}
-cells <- unique(trace_data$cell)
-
-walk(cells, plot_and_save_cluster_data)
+p <- plot_and_save_cluster_data(specific_cell = NULL)
+px <- plot_and_save_cluster_data(specific_cell = "cell1")
 ```
 
 

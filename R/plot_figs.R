@@ -248,6 +248,7 @@ plot_getty_responses <- function(data, trial_situations, trial_bits, back_window
       names == "error" ~ "error",
       TRUE ~ "interest_bit_time"
     )) %>%
+    dplyr::filter(!duplicated(paste0(trial, names))) %>%
     tidyr::pivot_wider(names_from = "names", values_from = "vals") %>%
     dplyr::filter(is.na(error)) %>%
     tidyr::unnest(spikes) %>%
