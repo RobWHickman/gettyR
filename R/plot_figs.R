@@ -326,11 +326,28 @@ plot_getty_responses <- function(data, specific_cell = NULL, trial_situations, t
         TRUE ~ 0
       ))
     unnested_spikes <- left_join(unnested_spikes, trial_data, by = "trial") %>%
-      dplyr::filter(win == 1)
+      dplyr::rename(split = win)
+    scale_plot_colours <- scale_colour_manual(values = c("red", "darkblue"), guide = FALSE)
+    scale_plot_fills <- scale_fill_manual(values = c("red", "darkblue"), guide = FALSE)
+  } else if(trial_bits == "fractal_display") {
+    frac_magnitudes <- unique(do.call(rbind, unnested_spikes$trial_vals) %>%
+                                dplyr::filter(names == "reward_magnitude") %>%
+                                .$vals)
+    if(length(frac_magnitudes > 1)) {
+
+    } else {
+      unnested_spikes$split <- 1
+      scale_plot_colours <- scale_colour_manual(values = "black", guide = FALSE)
+      scale_plot_fills <- scale_fill_manual(values = "black", guide = FALSE)
+    }
+  } else {
+    unnested_spikes$split <- 1
+    scale_plot_colours <- scale_colour_manual(values = "black", guide = FALSE)
+    scale_plot_fills <- scale_fill_manual(values = "black", guide = FALSE)
   }
 
   raster_plot <- unnested_spikes %>%
-    ggplot() +
+    ggplot(aes(fill = factor(split))) +
     geom_vline(xintercept = 0, colour = "red", linetype = "dotted") +
     geom_rect(aes(xmin = post_event_time_ms, xmax = post_event_time_ms + raster_width, ymin = trial, ymax = trial + 1)) +
     scale_x_continuous(breaks = seq(back_window, front_window, 500)) +
@@ -342,23 +359,29 @@ plot_getty_responses <- function(data, specific_cell = NULL, trial_situations, t
   firing_rate <- unnested_spikes %>%
     dplyr::mutate(bin_time = cut(post_event_time_ms, seq(back_window, front_window, binwidth))) %>%
     dplyr::mutate(bin_time = as.numeric(gsub("(^\\()(.*)(,.*$)", "\\2", as.character(bin_time))) + binwidth/2) %>%
-    dplyr::group_by(trial, bin_time) %>%
+    dplyr::group_by(trial, bin_time, split) %>%
     dplyr::summarise(n = n()) %>%
     dplyr::ungroup() %>%
-    tidyr::complete(trial, bin_time, fill = list(n = 0)) %>%
-    dplyr::group_by(bin_time) %>%
+    tidyr::complete(trial, nesting(bin_time, split),  fill = list(n = 0)) %>%
+    dplyr::group_by(bin_time, split) %>%
     dplyr::summarise(mean_spikes = mean(n),
                      sem = sd(n) / sqrt(n())) %>%
     dplyr::mutate_at(c("mean_spikes", "sem"), ~. * (1000 / binwidth))
 
   fr_plot <- firing_rate %>%
-    ggplot(aes(x = bin_time, y = mean_spikes)) +
+    ggplot(aes(x = bin_time, y = mean_spikes, colour = factor(split))) +
     geom_vline(xintercept = 0, colour = "red", linetype = "dotted") +
-    geom_ribbon(aes(ymin = mean_spikes - sem, ymax = mean_spikes + sem), fill = "grey80", colour = "black", linetype = "dotted") +
+    geom_ribbon(aes(ymin = mean_spikes - sem, ymax = mean_spikes + sem), fill = "grey80", alpha = 0.5, linetype = "dotted") +
     geom_line(size = 2) +
     scale_x_continuous(breaks = seq(back_window, front_window, 500), "time (ms)") +
     labs(y = "firing rate (Hz)") +
-    theme_minimal()
+    theme_minimal() +
+    scale_plot_colours()
+
+  if(trial_bits == "win_lose") {
+    raster_plot <- raster_plot + scale_fill_manual(values = c("red", "darkblue"), guide = FALSE)
+    fr_plot <- fr_plot + scale_colour_manual(values = c("red", "darkblue"), guide = FALSE)
+  } else
 
   plot <- raster_plot / fr_plot
 
