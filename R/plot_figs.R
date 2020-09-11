@@ -274,10 +274,10 @@ plot_getty_responses <- function(data) {
 #' @author Robert Hickman
 #' @export plot_getty_responses
 
-plot_getty_responses <- function(data, trial_situations, trial_bits, back_window = -1000, front_window = 2000, binwidth = 20, raster_width = 5) {
+plot_getty_responses <- function(data, specific_cell = NULL, trial_situations, trial_bits, back_window = -1000, front_window = 2000, binwidth = 20, raster_width = 5) {
   situation_trials <- data %>%
     dplyr::filter(situation == trial_situations) %>%
-    dplyr::select(trial, trial_start_time_ms, situation, bits, trial_vals, spikes) %>%
+    dplyr::select(trial, trial_start_time_ms, situation, bits, trial_vals, spikes, sorted_spikes) %>%
     tidyr::unnest(bits) %>%
     dplyr::filter(index == "upat" & names %in% c(trial_bits, "error")) %>%
     dplyr::mutate(names = case_when(
@@ -286,14 +286,26 @@ plot_getty_responses <- function(data, trial_situations, trial_bits, back_window
     )) %>%
     dplyr::filter(!duplicated(paste0(trial, names))) %>%
     tidyr::pivot_wider(names_from = "names", values_from = "vals") %>%
-    dplyr::filter(is.na(error)) %>%
-    tidyr::unnest(spikes) %>%
-    dplyr::select(-spike, -error) %>%
-    dplyr::mutate(post_event_time_ms = trial_spike_time_ms - interest_bit_time) %>%
-    dplyr::filter(post_event_time_ms < front_window & post_event_time_ms > back_window)
+    dplyr::filter(is.na(error))
+
+  if(is.null(specific_cell)) {
+    unnested_spikes <- situation_trials %>%
+      tidyr::unnest(spikes) %>%
+      dplyr::select(-spike, -error, -sorted_spikes) %>%
+      dplyr::mutate(post_event_time_ms = trial_spike_time_ms - interest_bit_time) %>%
+      dplyr::filter(post_event_time_ms < front_window & post_event_time_ms > back_window)
+
+  } else {
+    unnested_spikes <- situation_trials %>%
+      tidyr::unnest(sorted_spikes) %>%
+      dplyr::filter(cell == specific_cell) %>%
+      dplyr::select(-error, -spikes) %>%
+      dplyr::mutate(post_event_time_ms = trial_spike_time_ms - interest_bit_time) %>%
+      dplyr::filter(post_event_time_ms < front_window & post_event_time_ms > back_window)
+  }
 
   if(trial_bits == "win_lose") {
-    unique_trials <- situation_trials %>%
+    unique_trials <- unnested_spikes %>%
       dplyr::filter(!duplicated(trial))
     trial_data <- map2_df(
       unique_trials$trial,
@@ -313,11 +325,11 @@ plot_getty_responses <- function(data, trial_situations, trial_bits, back_window
         monkey_bid > computer_bid ~ 1,
         TRUE ~ 0
       ))
-    situation_trials <- left_join(situation_trials, trial_data, by = "trial") %>%
+    unnested_spikes <- left_join(unnested_spikes, trial_data, by = "trial") %>%
       dplyr::filter(win == 1)
   }
 
-  raster_plot <- situation_trials %>%
+  raster_plot <- unnested_spikes %>%
     ggplot() +
     geom_vline(xintercept = 0, colour = "red", linetype = "dotted") +
     geom_rect(aes(xmin = post_event_time_ms, xmax = post_event_time_ms + raster_width, ymin = trial, ymax = trial + 1)) +
@@ -327,7 +339,7 @@ plot_getty_responses <- function(data, trial_situations, trial_bits, back_window
       y = "trial count") +
     theme_minimal()
 
-  firing_rate <- situation_trials %>%
+  firing_rate <- unnested_spikes %>%
     dplyr::mutate(bin_time = cut(post_event_time_ms, seq(back_window, front_window, binwidth))) %>%
     dplyr::mutate(bin_time = as.numeric(gsub("(^\\()(.*)(,.*$)", "\\2", as.character(bin_time))) + binwidth/2) %>%
     dplyr::group_by(trial, bin_time) %>%

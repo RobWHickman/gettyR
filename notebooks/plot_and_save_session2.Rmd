@@ -38,7 +38,7 @@ situations <- c(4, 2, 2, 2)
 
 walk2(bits, situations,
       function(b, s) {
-        p <- plot_getty_responses(spike_data, s, b)
+        p <- plot_getty_responses(spike_data, trial_situations = s, trial_bits = b)
         path <- paste0(file.path(dir, session, "figures/unsorted_responses", b), ".png")
         ggsave(plot = p, filename = path, device = "png")
       })
@@ -51,7 +51,23 @@ walk(cells, gettyR::plot_and_save_cluster_data, session_folder = session, dir_fo
 gettyR::plot_and_save_cluster_data(NULL, session_folder = session, dir_folder = dir)
 ```
 
-```{r individual_cell_responses}
+```{r individual_cell_responses, eval = FALSE}
+bits <- c("free_reward", "fixation_cross", "win_lose", "fractal_display")
+situations <- c(4, 2, 2, 2)
+cells <- unique(unlist(spike_data$sorted_spikes) %>%
+           .[grepl("^cell", .)])
 
+arguments_df <- data.frame(trial_situations = situations, trial_bits = bits) %>%
+  slice(rep(row_number(), length(cells))) %>%
+  dplyr::mutate(specific_cell = rep(cells, each = length(bits)))
+
+safe_plot <- purrr::safely(gettyR::plot_getty_responses)
+pwalk(arguments_df, function(trial_situations, trial_bits, specific_cell) {
+  p <- safe_plot(spike_data, specific_cell = specific_cell, trial_situations = trial_situations, trial_bits = trial_bits)
+  if(is.null(p$error)) {
+    path <- paste0(file.path(dir, session, "figures", specific_cell, trial_bits), ".png")
+    ggsave(plot = p$result, filename = path, device = "png")
+  }
+})
 ```
 
