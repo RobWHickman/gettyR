@@ -276,8 +276,8 @@ plot_getty_responses <- function(data) {
 
 plot_getty_responses <- function(data, specific_cell = NULL, trial_situations, trial_bits, back_window = -1000, front_window = 2000, binwidth = 20, raster_width = 5) {
   situation_trials <- data %>%
-    dplyr::filter(situation == trial_situations) %>%
-    dplyr::select(trial, trial_start_time_ms, situation, bits, trial_vals, spikes, sorted_spikes) %>%
+    dplyr::filter(situation %in% unlist(trial_situations)) %>%
+    dplyr::select(trial, trial_start_time_ms, situation, bits, trial_vals, trial_addvals, spikes, sorted_spikes) %>%
     tidyr::unnest(bits) %>%
     dplyr::filter(index == "upat" & names %in% c(trial_bits, "error")) %>%
     dplyr::mutate(names = case_when(
@@ -330,11 +330,10 @@ plot_getty_responses <- function(data, specific_cell = NULL, trial_situations, t
     scale_plot_colours <- scale_colour_manual(values = c("red", "darkblue"), guide = FALSE)
     scale_plot_fills <- scale_fill_manual(values = c("red", "darkblue"), guide = FALSE)
   } else if(trial_bits == "fractal_display") {
-    frac_magnitudes <- unique(do.call(rbind, unnested_spikes$trial_vals) %>%
-                                dplyr::filter(names == "reward_magnitude") %>%
-                                .$vals)
-    if(length(frac_magnitudes > 1)) {
-
+    if(length(unique(unnested_spikes$situation) > 1)) {
+      unnested_spikes$split <- unnested_spikes$situation
+      scale_plot_colours <- scale_colour_manual(values = c("red", "darkblue", "forestgreen"), guide = FALSE)
+      scale_plot_fills <- scale_fill_manual(values = c("red", "darkblue", "forestgreen"), guide = FALSE)
     } else {
       unnested_spikes$split <- 1
       scale_plot_colours <- scale_colour_manual(values = "black", guide = FALSE)
@@ -354,7 +353,8 @@ plot_getty_responses <- function(data, specific_cell = NULL, trial_situations, t
     labs(
       title = paste("unsorted nba responses to", trial_bits),
       y = "trial count") +
-    theme_minimal()
+    theme_minimal() +
+    scale_plot_fills
 
   firing_rate <- unnested_spikes %>%
     dplyr::mutate(bin_time = cut(post_event_time_ms, seq(back_window, front_window, binwidth))) %>%
@@ -376,12 +376,7 @@ plot_getty_responses <- function(data, specific_cell = NULL, trial_situations, t
     scale_x_continuous(breaks = seq(back_window, front_window, 500), "time (ms)") +
     labs(y = "firing rate (Hz)") +
     theme_minimal() +
-    scale_plot_colours()
-
-  if(trial_bits == "win_lose") {
-    raster_plot <- raster_plot + scale_fill_manual(values = c("red", "darkblue"), guide = FALSE)
-    fr_plot <- fr_plot + scale_colour_manual(values = c("red", "darkblue"), guide = FALSE)
-  } else
+    scale_plot_colours
 
   plot <- raster_plot / fr_plot
 

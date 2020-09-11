@@ -34,7 +34,7 @@ create_spike_dirs(dir = dir, session, cells)
 ```
 ```{r plot_unsorted_data, warning=FALSE,message=FALSE}
 bits <- c("free_reward", "fixation_cross", "win_lose", "fractal_display")
-situations <- c(4, 2, 2, 2)
+situations <- c(4, rep(list(1:3), 3))
 
 walk2(bits, situations,
       function(b, s) {
@@ -53,11 +53,12 @@ gettyR::plot_and_save_cluster_data(NULL, session_folder = session, dir_folder = 
 
 ```{r individual_cell_responses, eval = FALSE}
 bits <- c("free_reward", "fixation_cross", "win_lose", "fractal_display")
-situations <- c(4, 2, 2, 2)
+situations <- c(4, rep(list(1:3), 3))
 cells <- unique(unlist(spike_data$sorted_spikes) %>%
            .[grepl("^cell", .)])
 
-arguments_df <- data.frame(trial_situations = situations, trial_bits = bits) %>%
+arguments_df <- data.frame(trial_bits = bits) %>%
+  dplyr::mutate(trial_situations = situations) %>%
   slice(rep(row_number(), length(cells))) %>%
   dplyr::mutate(specific_cell = rep(cells, each = length(bits)))
 
