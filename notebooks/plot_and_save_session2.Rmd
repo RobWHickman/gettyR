@@ -51,7 +51,7 @@ walk(cells, gettyR::plot_and_save_cluster_data, session_folder = session, dir_fo
 gettyR::plot_and_save_cluster_data(NULL, session_folder = session, dir_folder = dir)
 ```
 
-```{r individual_cell_responses, eval = FALSE}
+```{r individual_cell_responses}
 bits <- c("free_reward", "fixation_cross", "win_lose", "fractal_display")
 situations <- c(4, rep(list(1:3), 3))
 cells <- unique(unlist(spike_data$sorted_spikes) %>%

@@ -153,7 +153,7 @@ plot_pca <- function(trace_data, specific_cell = NULL, xaxis = "PC1", yaxis = "P
     dplyr::rename(x_dim = !!xaxis, ydim = !!yaxis)
 
   pca_plot <- ggplot(pca_data, aes(x = x_dim, y = ydim)) +
-    geom_point(data = dplyr::select(pca_data, -cell), colour = "grey80", alpha = 0.65) +
+    geom_point(data = dplyr::select(pca_data, -cell), colour = "grey80", alpha = 0.65, size = 0.5) +
     theme_minimal() +
     labs(
       title = "pca of cell trace",
@@ -167,21 +167,22 @@ plot_pca <- function(trace_data, specific_cell = NULL, xaxis = "PC1", yaxis = "P
       facet_wrap(~cell)
   } else {
     pca_plot <- pca_plot +
-      geom_point(data = dplyr::filter(pca_data, cell == specific_cell), colour = "dodgerblue")
+      geom_point(data = dplyr::filter(pca_data, cell == specific_cell), colour = "dodgerblue", size = 0.5)
   }
 }
 
 #' Plot the profile of individual or all cells from a recording session
 #' @param specific_cell Whether to plot a specific cell referenced by name or all (NULL)
 #' @param trace_data The trace data exported from getty via Spike2. A df of 3 variables an n rows
-#' @param specific_cell A specific cell to plot or to highlight all cells. Defaults to NULL
+#' @param sorted_spikes_df The nested sorted spike data
+#' @param x_length How many ms to look forwards/backwards on the x axis. Defaults to 1000
 #' @param session_folder The session folder to save the output plot into
 #' @param dir_folder The upper directory folder to save the output plot into
 #'
 #' @author Robert Hickman
 #' @export plot_and_save_cluster_data
 
-plot_and_save_cluster_data <- function(specific_cell, trace_df = trace_data, sorted_spikes_df = spike_data$sorted_spikes, session_folder, dir_folder) {
+plot_and_save_cluster_data <- function(specific_cell, trace_df = trace_data, sorted_spikes_df = spike_data$sorted_spikes, x_length = 1000, session_folder, dir_folder) {
   if(is.null(specific_cell)) {
     n_spikes <- do.call(sum, lapply(sorted_spikes_df, nrow))
     plot_path <- paste0(file.path(dir_folder, session_folder, "figures/"), "cell_profiles.png")
@@ -191,8 +192,10 @@ plot_and_save_cluster_data <- function(specific_cell, trace_df = trace_data, sor
   }
 
   trace_plot <- gettyR::plot_cell_trace(trace_data = trace_df, specific_cell = specific_cell)
-  isi_histogram <- gettyR::plot_isi_histogram(spikes = sorted_spikes_df, specific_cell = specific_cell)
-  autocorr_histogram <- gettyR::plot_autocorr(spikes = sorted_spikes_df, specific_cell = specific_cell)
+  isi_histogram <- gettyR::plot_isi_histogram(spikes = sorted_spikes_df, specific_cell = specific_cell) +
+    scale_x_continuous(limits = c(0, x_length))
+  autocorr_histogram <- gettyR::plot_autocorr(spikes = sorted_spikes_df, specific_cell = specific_cell) +
+    scale_x_continuous(limits = c(-x_length, x_length))
   pca1 <- gettyR::plot_pca(trace_data = trace_df, specific_cell = specific_cell, xaxis = "PC1", yaxis = "PC2")
   pca2 <- gettyR::plot_pca(trace_data = trace_df, specific_cell = specific_cell, xaxis = "PC1", yaxis = "PC3")
   pca3 <- gettyR::plot_pca(trace_data = trace_df, specific_cell = specific_cell, xaxis = "PC3", yaxis = "PC2")
@@ -274,7 +277,7 @@ plot_getty_responses <- function(data) {
 #' @author Robert Hickman
 #' @export plot_getty_responses
 
-plot_getty_responses <- function(data, specific_cell = NULL, trial_situations, trial_bits, back_window = -1000, front_window = 2000, binwidth = 20, raster_width = 5) {
+plot_getty_responses <- function(data, specific_cell = NULL, trial_situations, trial_bits, back_window = -1000, front_window = 2000, binwidth = 20, raster_width = 7) {
   situation_trials <- data %>%
     dplyr::filter(situation %in% unlist(trial_situations)) %>%
     dplyr::select(trial, trial_start_time_ms, situation, bits, trial_vals, trial_addvals, spikes, sorted_spikes) %>%
@@ -295,6 +298,8 @@ plot_getty_responses <- function(data, specific_cell = NULL, trial_situations, t
       dplyr::mutate(post_event_time_ms = trial_spike_time_ms - interest_bit_time) %>%
       dplyr::filter(post_event_time_ms < front_window & post_event_time_ms > back_window)
 
+    title_prefix <- "unsorted cell responses to"
+
   } else {
     unnested_spikes <- situation_trials %>%
       tidyr::unnest(sorted_spikes) %>%
@@ -302,6 +307,8 @@ plot_getty_responses <- function(data, specific_cell = NULL, trial_situations, t
       dplyr::select(-error, -spikes) %>%
       dplyr::mutate(post_event_time_ms = trial_spike_time_ms - interest_bit_time) %>%
       dplyr::filter(post_event_time_ms < front_window & post_event_time_ms > back_window)
+
+    title_prefix <- paste(specific_cell, "responses to")
   }
 
   if(trial_bits == "win_lose") {
@@ -348,12 +355,13 @@ plot_getty_responses <- function(data, specific_cell = NULL, trial_situations, t
   raster_plot <- unnested_spikes %>%
     ggplot(aes(fill = factor(split))) +
     geom_vline(xintercept = 0, colour = "red", linetype = "dotted") +
-    geom_rect(aes(xmin = post_event_time_ms, xmax = post_event_time_ms + raster_width, ymin = trial, ymax = trial + 1)) +
+    geom_rect(aes(xmin = post_event_time_ms, xmax = post_event_time_ms + raster_width, ymin = trial, ymax = trial + 1), alpha = 0.7) +
     scale_x_continuous(breaks = seq(back_window, front_window, 500)) +
     labs(
-      title = paste("unsorted nba responses to", trial_bits),
+      title = paste(title_prefix, trial_bits),
       y = "trial count") +
     theme_minimal() +
+    theme(axis.text.x = element_blank()) +
     scale_plot_fills
 
   firing_rate <- unnested_spikes %>%
