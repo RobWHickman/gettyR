@@ -185,7 +185,7 @@ plot_pca <- function(trace_data, specific_cell = NULL, xaxis = "PC1", yaxis = "P
 plot_and_save_cluster_data <- function(specific_cell, trace_df = trace_data, sorted_spikes_df = spike_data$sorted_spikes, x_length = 1000, session_folder, dir_folder) {
   if(is.null(specific_cell)) {
     n_spikes <- do.call(sum, lapply(sorted_spikes_df, nrow))
-    plot_path <- paste0(file.path(dir_folder, session_folder, "figures/"), "cell_profiles.png")
+    plot_path <- paste0(file.path(dir_folder, session_folder, "figures"), "/cell_profiles.png")
   } else {
     n_spikes <- do.call(sum, lapply(sorted_spikes_df, function(s) nrow(dplyr::filter(s, cell == specific_cell))))
     plot_path <- paste0(file.path(dir_folder, session_folder, "figures", specific_cell), "/cell_profile.png")

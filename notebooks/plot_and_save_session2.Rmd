@@ -47,8 +47,8 @@ walk2(bits, situations,
 
 ```{r plot_cells}
 cells <- unique(trace_data$cell)
-walk(cells, gettyR::plot_and_save_cluster_data, session_folder = session, dir_folder = dir)
-gettyR::plot_and_save_cluster_data(NULL, session_folder = session, dir_folder = dir)
+walk(cells, gettyR::plot_and_save_cluster_data, session_folder = session, dir_folder = dir, x_length = 500)
+#gettyR::plot_and_save_cluster_data(NULL, session_folder = session, dir_folder = dir)
 ```
 
 ```{r individual_cell_responses}
